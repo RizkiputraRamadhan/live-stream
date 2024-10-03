@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Preview Video Streaming</title>
+    <style>
+        video {
+            width: 45%;
+            margin: 2%;
+            border: 2px solid black;
+        }
+    </style>
+</head>
+<body>
+    <h1>Preview Video Streaming</h1>
+    <video id="remoteVideo" autoplay></video>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const remoteVideo = document.getElementById('remoteVideo');
+
+        let peerConnection;
+
+        function startReceiving() {
+            peerConnection = new RTCPeerConnection();
+
+            // Mendapatkan track video dari peerConnection
+            peerConnection.ontrack = (event) => {
+                // Set video source menjadi stream yang diterima
+                if (remoteVideo.srcObject !== event.streams[0]) {
+                    remoteVideo.srcObject = event.streams[0];
+                }
+            };
+
+            // Mendengarkan penawaran dari peer
+            socket.on('offer', (offer) => {
+                peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
+                    .then(() => {
+                        return peerConnection.createAnswer();
+                    })
+                    .then(answer => {
+                        return peerConnection.setLocalDescription(answer);
+                    })
+                    .then(() => {
+                        socket.emit('answer', peerConnection.localDescription);
+                    })
+                    .catch(error => console.error('Error handling offer:', error));
+            });
+
+            // Menambahkan kandidat ICE
+            socket.on('candidate', (candidate) => {
+                peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+                    .catch(error => console.error('Error adding ice candidate:', error));
+            });
+        }
+
+        // Memulai proses menerima stream
+        startReceiving();
+    </script>
+</body>
+</html>

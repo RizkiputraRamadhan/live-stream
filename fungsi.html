@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Safe Browser Data Access & Voice Recording Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            margin: 10px 0;
+            padding: 10px;
+        }
+        #output {
+            white-space: pre-wrap;
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        audio {
+            display: block;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Safe Browser Data Access & Voice Recording Demo</h1>
+    <p>This demo shows how to safely access some browser data with user permission and record voice in real-time.</p>
+    
+    <button id="checkStorageBtn">Check Storage Usage</button>
+    <button id="checkBatteryBtn">Check Battery Status</button>
+    <button id="checkNetworkBtn">Check Network Status</button>
+    <button id="checkGeolocationBtn">Check Geolocation</button>
+    <button id="checkCookiesBtn">Check Cookies</button>
+    
+    <!-- New buttons for voice recording -->
+    <button id="startRecordingBtn">Start Recording</button>
+    <button id="stopRecordingBtn" disabled>Stop Recording</button>
+
+    <h2>Output:</h2>
+    <div id="output"></div>
+
+    <!-- Container for audio playback -->
+    <h2>Recorded Audio:</h2>
+    <audio id="audioPlayback" controls></audio>
+
+    <script>
+        const output = document.getElementById('output');
+        const startRecordingBtn = document.getElementById('startRecordingBtn');
+        const stopRecordingBtn = document.getElementById('stopRecordingBtn');
+        const audioPlayback = document.getElementById('audioPlayback');
+
+        let mediaRecorder;
+        let audioChunks = [];
+
+        function log(message) {
+            output.textContent += message + '\n\n';
+        }
+
+        document.getElementById('checkStorageBtn').addEventListener('click', async () => {
+            try {
+                if ('storage' in navigator && 'estimate' in navigator.storage) {
+                    const estimate = await navigator.storage.estimate();
+                    const percentUsed = (estimate.usage / estimate.quota * 100).toFixed(2);
+                    log(`Storage usage: ${percentUsed}% (${estimate.usage} bytes out of ${estimate.quota} bytes)`);
+                } else {
+                    log('Storage estimation not supported in this browser.');
+                }
+            } catch (error) {
+                log('Error checking storage: ' + error);
+            }
+        });
+
+        document.getElementById('checkBatteryBtn').addEventListener('click', async () => {
+            try {
+                if ('getBattery' in navigator) {
+                    const battery = await navigator.getBattery();
+                    log(`Battery status:
+                        Level: ${battery.level * 100}%
+                        Charging: ${battery.charging ? 'Yes' : 'No'}
+                        Time to full charge: ${battery.chargingTime === Infinity ? 'N/A' : battery.chargingTime + ' seconds'}
+                        Time left: ${battery.dischargingTime === Infinity ? 'N/A' : battery.dischargingTime + ' seconds'}`);
+                } else {
+                    log('Battery status not supported in this browser.');
+                }
+            } catch (error) {
+                log('Error checking battery: ' + error);
+            }
+        });
+
+        document.getElementById('checkNetworkBtn').addEventListener('click', () => {
+            if ('connection' in navigator) {
+                const connection = navigator.connection;
+                log(`Network status:
+                    Type: ${connection.effectiveType}
+                    Downlink: ${connection.downlink} Mbps
+                    RTT: ${connection.rtt} ms
+                    Save Data: ${connection.saveData ? 'On' : 'Off'}`);
+            } else {
+                log('Network information not supported in this browser.');
+            }
+        });
+
+        document.getElementById('checkGeolocationBtn').addEventListener('click', () => {
+            if ('geolocation' in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        log(`Geolocation:
+                            Latitude: ${position.coords.latitude}
+                            Longitude: ${position.coords.longitude}
+                            Accuracy: ${position.coords.accuracy} meters`);
+                    },
+                    (error) => {
+                        log('Geolocation error: ' + error.message);
+                    }
+                );
+            } else {
+                log('Geolocation not supported in this browser.');
+            }
+        });
+
+        document.getElementById('checkCookiesBtn').addEventListener('click', () => {
+            const cookies = document.cookie;
+            if (cookies) {
+                log(`Cookies: ${cookies}`);
+            } else {
+                log('No cookies found.');
+            }
+        });
+
+        // Voice recording functionality
+        startRecordingBtn.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    audioChunks = [];
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    audioPlayback.src = audioUrl;
+                    log('Recording stopped. Audio ready for playback.');
+                };
+
+                mediaRecorder.start();
+                log('Recording started...');
+                startRecordingBtn.disabled = true;
+                stopRecordingBtn.disabled = false;
+            } catch (error) {
+                log('Error accessing microphone: ' + error.message);
+            }
+        });
+
+        stopRecordingBtn.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                startRecordingBtn.disabled = false;
+                stopRecordingBtn.disabled = true;
+            }
+        });
+    </script>
+</body>
+</html>
